@@ -5,6 +5,7 @@ import logging
 from urllib.parse import urlparse, parse_qs
 import tempfile
 import re
+import time
 
 class YouTubeProcessor:
     def __init__(self):
@@ -158,6 +159,7 @@ class YouTubeProcessor:
         """Download audio and thumbnail for a video"""
         audio_path = None
         thumbnail_path = None
+        time.sleep(5)
 
         try:
             # Add cookies to download options if available
