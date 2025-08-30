@@ -208,13 +208,88 @@ class YouTubeProcessor {
                 </div>
                 <div class="card-body">
                     <p class="mb-2">${task.message}</p>
-                    ${task.progress ? `<p class="mb-2"><strong>Progress:</strong> ${task.progress}</p>` : ''}
+                    ${this.renderProgressAndCounters(task)}
                     <small class="text-muted">Last updated: ${updatedAt}</small>
                     ${task.result ? this.renderTaskResult(task.result) : ''}
                     ${task.error ? `<div class="alert alert-danger mt-2"><strong>Error:</strong> ${task.error}</div>` : ''}
                 </div>
             </div>
         `;
+    }
+
+    renderProgressAndCounters(task) {
+        let html = '';
+        
+        // Show progress if available
+        if (task.progress) {
+            html += `<p class="mb-2"><strong>Progress:</strong> ${task.progress}</p>`;
+        }
+        
+        // Show detailed status if available
+        if (task.detailed_status) {
+            const statusText = this.formatDetailedStatus(task.detailed_status);
+            html += `<p class="mb-2"><strong>Current Status:</strong> ${statusText}</p>`;
+        }
+        
+        // Show last video status if available
+        if (task.last_video_status) {
+            const lastStatusText = this.formatLastVideoStatus(task.last_video_status);
+            html += `<p class="mb-2"><strong>Last Video:</strong> ${lastStatusText}</p>`;
+        }
+        
+        // Show counters if available
+        if (task.counters) {
+            const counters = task.counters;
+            html += `
+                <div class="mt-2">
+                    <h6>Status Counters:</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <ul class="list-unstyled mb-2">
+                                <li><strong>Total:</strong> ${counters.total}</li>
+                                <li><strong>Pending:</strong> ${counters.pending}</li>
+                                <li><strong>Success:</strong> <span class="text-success">${counters.success}</span></li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <ul class="list-unstyled mb-2">
+                                <li><strong>Already Exists:</strong> <span class="text-info">${counters.exists}</span></li>
+                                <li><strong>Duration Skipped:</strong> <span class="text-warning">${counters.skipped_duration}</span></li>
+                                <li><strong>Errors:</strong> <span class="text-danger">${counters.error}</span></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        return html;
+    }
+
+    formatDetailedStatus(status) {
+        const statusMap = {
+            'initiated': 'Task Initiated',
+            'extracting_info': 'Extracting Video Information',
+            'extracting_playlist': 'Extracting Playlist Videos',
+            'extracting_channel': 'Extracting Channel Videos',
+            'checking_exists': 'Checking if Song Exists',
+            'downloading': 'Downloading Audio & Thumbnail',
+            'uploading': 'Uploading to Cloud Storage',
+            'sending_to_api': 'Sending to Music API',
+            'processing_video': 'Processing Video',
+            'completed': 'Completed'
+        };
+        return statusMap[status] || status;
+    }
+
+    formatLastVideoStatus(status) {
+        const statusMap = {
+            'success': '<span class="text-success">Successfully Processed</span>',
+            'error': '<span class="text-danger">Processing Failed</span>',
+            'exists': '<span class="text-info">Already Exists</span>',
+            'skipped_duration': '<span class="text-warning">Skipped (Duration)</span>'
+        };
+        return statusMap[status] || status;
     }
 
     renderTaskResult(result) {
@@ -236,12 +311,11 @@ class YouTubeProcessor {
         if (result.total !== undefined) {
             return `
                 <div class="mt-3">
-                    <h6>Batch Processing Results:</h6>
+                    <h6>Final Results Summary:</h6>
                     <ul class="list-unstyled">
                         <li><strong>Total Videos:</strong> ${result.total}</li>
-                        <li><strong>Processed:</strong> ${result.processed}</li>
-                        <li><strong>Successful:</strong> ${result.successful}</li>
-                        <li><strong>Success Rate:</strong> ${((result.successful / result.processed) * 100).toFixed(1)}%</li>
+                        <li><strong>Successful:</strong> <span class="text-success">${result.successful}</span></li>
+                        <li><strong>Success Rate:</strong> ${((result.successful / result.total) * 100).toFixed(1)}%</li>
                     </ul>
                 </div>
             `;
