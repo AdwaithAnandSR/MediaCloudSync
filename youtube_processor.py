@@ -62,7 +62,7 @@ class YouTubeProcessor:
                     'id': info.get('id', ''),
                     'title': info.get('title', ''),
                     'duration': info.get('duration', 0),
-                    'artist': info.get('uploader', '') or info.get('channel', ''),
+                    'artist': 'unknown',
                     'thumbnail': info.get('thumbnail', ''),
                     'url': url
                 }
