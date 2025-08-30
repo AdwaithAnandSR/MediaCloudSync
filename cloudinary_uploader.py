@@ -26,50 +26,55 @@ class CloudinaryUploader:
             raise ValueError("Cloudinary credentials missing in environment variables")
 
     def upload_media(self, audio_path, thumbnail_path, video_info):
-        """Upload audio and thumbnail to Cloudinary"""
+        """Upload audio and thumbnail to Cloudinary with immediate cleanup"""
         song_url = None
         cover_url = None
         
         try:
-            # Upload audio file
+            # Upload audio file and clean up immediately
             if audio_path and os.path.exists(audio_path):
-                audio_result = cloudinary.uploader.upload(
-                    audio_path,
-                    resource_type="video",  # Use video resource type for audio
-                    public_id=f"songs/{video_info['id']}",
-                    tags=["youtube", "song"],
-                    context={
-                        "title": video_info['title'],
-                        "artist": video_info['artist'],
-                        "duration": str(video_info['duration'])
-                    }
-                )
-                song_url = audio_result.get('secure_url')
-                logging.info(f"Uploaded audio to Cloudinary: {song_url}")
+                try:
+                    audio_result = cloudinary.uploader.upload(
+                        audio_path,
+                        resource_type="video",  # Use video resource type for audio
+                        public_id=f"songs/{video_info['id']}",
+                        tags=["youtube", "song"],
+                        context={
+                            "title": video_info['title'],
+                            "artist": video_info['artist'],
+                            "duration": str(video_info['duration'])
+                        }
+                    )
+                    song_url = audio_result.get('secure_url')
+                    logging.info(f"Uploaded audio to Cloudinary: {song_url}")
+                finally:
+                    # Clean up audio file immediately after upload attempt
+                    self._cleanup_files(audio_path)
             
-            # Upload thumbnail
+            # Upload thumbnail and clean up immediately
             if thumbnail_path and os.path.exists(thumbnail_path):
-                thumbnail_result = cloudinary.uploader.upload(
-                    thumbnail_path,
-                    resource_type="image",
-                    public_id=f"covers/{video_info['id']}",
-                    tags=["youtube", "cover"],
-                    context={
-                        "title": video_info['title'],
-                        "artist": video_info['artist']
-                    }
-                )
-                cover_url = thumbnail_result.get('secure_url')
-                logging.info(f"Uploaded cover to Cloudinary: {cover_url}")
-            
-            # Clean up local files after upload
-            self._cleanup_files(audio_path, thumbnail_path)
+                try:
+                    thumbnail_result = cloudinary.uploader.upload(
+                        thumbnail_path,
+                        resource_type="image",
+                        public_id=f"covers/{video_info['id']}",
+                        tags=["youtube", "cover"],
+                        context={
+                            "title": video_info['title'],
+                            "artist": video_info['artist']
+                        }
+                    )
+                    cover_url = thumbnail_result.get('secure_url')
+                    logging.info(f"Uploaded cover to Cloudinary: {cover_url}")
+                finally:
+                    # Clean up thumbnail file immediately after upload attempt
+                    self._cleanup_files(thumbnail_path)
             
             return song_url, cover_url
             
         except Exception as e:
             logging.error(f"Error uploading to Cloudinary: {str(e)}")
-            # Clean up files even if upload failed
+            # Final cleanup in case of any remaining files
             self._cleanup_files(audio_path, thumbnail_path)
             return None, None
 

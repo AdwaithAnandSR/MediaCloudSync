@@ -194,11 +194,16 @@ class YouTubeProcessor:
             except Exception as e:
                 logging.warning(f"Could not download thumbnail: {str(e)}")
 
+            # Clean up any extra files that might have been created during download
+            self._cleanup_extra_temp_files(video_info['id'])
+
             logging.info(f"Downloaded media for: {video_info['title']}")
             return audio_path, thumbnail_path
 
         except Exception as e:
             logging.error(f"Error downloading media: {str(e)}")
+            # Clean up any partial downloads
+            self._cleanup_extra_temp_files(video_info['id'])
             return None, None
 
     def check_song_exists(self, video_id, title):
@@ -259,6 +264,34 @@ class YouTubeProcessor:
                     logging.debug(f"Cleaned up temp file: {file_path}")
                 except Exception as e:
                     logging.warning(f"Could not remove temp file {file_path}: {str(e)}")
+
+    def _cleanup_extra_temp_files(self, video_id):
+        """Clean up any extra temporary files created during download"""
+        try:
+            # Common extensions that yt-dlp might create
+            extensions = ['mp3', 'webm', 'm4a', 'opus', 'mp4', 'jpg', 'png', 'webp', 'part', 'ytdl']
+            
+            for ext in extensions:
+                temp_file = os.path.join(self.temp_dir, f"{video_id}.{ext}")
+                if os.path.exists(temp_file):
+                    try:
+                        os.remove(temp_file)
+                        logging.debug(f"Cleaned up extra temp file: {temp_file}")
+                    except Exception as e:
+                        logging.warning(f"Could not remove extra temp file {temp_file}: {str(e)}")
+                        
+            # Also clean up any partial download files
+            import glob
+            pattern = os.path.join(self.temp_dir, f"{video_id}.*")
+            for file_path in glob.glob(pattern):
+                try:
+                    os.remove(file_path)
+                    logging.debug(f"Cleaned up remaining temp file: {file_path}")
+                except Exception as e:
+                    logging.warning(f"Could not remove remaining temp file {file_path}: {str(e)}")
+                    
+        except Exception as e:
+            logging.warning(f"Error during extra temp file cleanup: {str(e)}")
 
     def _validate_cookie_format(self, cookie_path):
         """Validate if cookies.txt is in Netscape format"""
