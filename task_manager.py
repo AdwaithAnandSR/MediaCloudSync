@@ -1,5 +1,5 @@
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
 class TaskManager:
@@ -10,22 +10,36 @@ class TaskManager:
     def create_task(self, task_id: str, task_type: str, description: str = ""):
         """Create a new task"""
         with self.lock:
+            now = datetime.now(timezone.utc)
             self.tasks[task_id] = {
                 'id': task_id,
                 'type': task_type,
                 'status': 'created',
                 'description': description,
                 'message': 'Task created',
-                'created_at': datetime.now().isoformat(),
-                'updated_at': datetime.now().isoformat(),
+                'created_at': now.isoformat(),
+                'updated_at': now.isoformat(),
                 'progress': None,
                 'result': None,
-                'error': None
+                'error': None,
+                'detailed_status': 'initiated',
+                'counters': {
+                    'total': 0,
+                    'processed': 0,
+                    'success': 0,
+                    'error': 0,
+                    'exists': 0,
+                    'skipped_duration': 0,
+                    'pending': 0
+                },
+                'last_video_status': None
             }
 
-    def update_task(self, task_id: str, status: str, message: str = "", result: Any = None, error: str = None):
+    def update_task(self, task_id: str, status: str, message: str = "", result: Any = None, error: str = None, detailed_status: str = None, progress_data: Dict = None):
         """Update task status and information"""
         with self.lock:
+            now = datetime.now(timezone.utc)
+            
             if task_id not in self.tasks:
                 # Create task if it doesn't exist
                 self.tasks[task_id] = {
@@ -34,23 +48,44 @@ class TaskManager:
                     'status': status,
                     'description': '',
                     'message': message,
-                    'created_at': datetime.now().isoformat(),
-                    'updated_at': datetime.now().isoformat(),
+                    'created_at': now.isoformat(),
+                    'updated_at': now.isoformat(),
                     'progress': None,
                     'result': None,
-                    'error': None
+                    'error': None,
+                    'detailed_status': detailed_status or 'processing',
+                    'counters': {
+                        'total': 0,
+                        'processed': 0,
+                        'success': 0,
+                        'error': 0,
+                        'exists': 0,
+                        'skipped_duration': 0,
+                        'pending': 0
+                    },
+                    'last_video_status': None
                 }
             
             task = self.tasks[task_id]
             task['status'] = status
             task['message'] = message
-            task['updated_at'] = datetime.now().isoformat()
+            task['updated_at'] = now.isoformat()
+            
+            if detailed_status:
+                task['detailed_status'] = detailed_status
             
             if result is not None:
                 task['result'] = result
             
             if error is not None:
                 task['error'] = error
+            
+            if progress_data:
+                task['progress'] = progress_data.get('progress', task.get('progress'))
+                if 'counters' in progress_data:
+                    task['counters'].update(progress_data['counters'])
+                if 'last_video_status' in progress_data:
+                    task['last_video_status'] = progress_data['last_video_status']
 
     def get_task_status(self, task_id: str) -> Optional[Dict[str, Any]]:
         """Get the current status of a task"""

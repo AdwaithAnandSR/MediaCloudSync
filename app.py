@@ -156,57 +156,89 @@ def get_all_tasks():
 def _process_video_background(task_id, url):
     """Background function to process a single video"""
     try:
-        task_manager.update_task(task_id, 'processing', 'Extracting video information...')
+        # Initialize counters
+        counters = {'total': 1, 'processed': 0, 'success': 0, 'error': 0, 'exists': 0, 'skipped_duration': 0, 'pending': 1}
+        
+        task_manager.update_task(task_id, 'processing', 'Extracting video information...', 
+                                detailed_status='extracting_info', 
+                                progress_data={'counters': counters})
         
         # Extract video info
         video_info = youtube_processor.extract_video_info(url)
         if not video_info:
-            task_manager.update_task(task_id, 'failed', 'Failed to extract video information')
+            counters.update({'error': 1, 'pending': 0})
+            task_manager.update_task(task_id, 'failed', 'Failed to extract video information',
+                                   progress_data={'counters': counters, 'last_video_status': 'error'})
+            return
+        
+        # Check duration filter
+        if not youtube_processor.is_duration_valid(video_info['duration']):
+            counters.update({'skipped_duration': 1, 'pending': 0})
+            duration_min = video_info['duration'] / 60 if video_info['duration'] else 0
+            task_manager.update_task(task_id, 'completed', 
+                                   f'Video skipped - duration {duration_min:.1f} min (must be 2-8 min)',
+                                   progress_data={'counters': counters, 'last_video_status': 'skipped_duration'})
             return
         
         # Check if song already exists
-        task_manager.update_task(task_id, 'processing', 'Checking if song already exists...')
+        task_manager.update_task(task_id, 'processing', 'Checking if song already exists...',
+                                detailed_status='checking_exists')
         if youtube_processor.check_song_exists(video_info['id'], video_info['title']):
-            task_manager.update_task(task_id, 'completed', 'Song already exists, skipping processing')
+            counters.update({'exists': 1, 'pending': 0})
+            task_manager.update_task(task_id, 'completed', 'Song already exists, skipping processing',
+                                   progress_data={'counters': counters, 'last_video_status': 'exists'})
             return
         
         # Download audio and thumbnail
-        task_manager.update_task(task_id, 'processing', 'Downloading audio and thumbnail...')
+        task_manager.update_task(task_id, 'processing', 'Downloading audio and thumbnail...',
+                                detailed_status='downloading')
         audio_path, thumbnail_path = youtube_processor.download_media(video_info)
         
         if not audio_path:
-            task_manager.update_task(task_id, 'failed', 'Failed to download audio')
+            counters.update({'error': 1, 'pending': 0})
+            task_manager.update_task(task_id, 'failed', 'Failed to download audio',
+                                   progress_data={'counters': counters, 'last_video_status': 'error'})
             return
         
         # Upload to Cloudinary
-        task_manager.update_task(task_id, 'processing', 'Uploading to Cloudinary...')
+        task_manager.update_task(task_id, 'processing', 'Uploading to Cloudinary...',
+                                detailed_status='uploading')
         song_url, cover_url = cloudinary_uploader.upload_media(audio_path, thumbnail_path, video_info)
         
         if not song_url:
-            task_manager.update_task(task_id, 'failed', 'Failed to upload to Cloudinary')
+            counters.update({'error': 1, 'pending': 0})
+            task_manager.update_task(task_id, 'failed', 'Failed to upload to Cloudinary',
+                                   progress_data={'counters': counters, 'last_video_status': 'error'})
             return
         
         # Send to external API
-        task_manager.update_task(task_id, 'processing', 'Sending to external API...')
+        task_manager.update_task(task_id, 'processing', 'Sending to external API...',
+                                detailed_status='sending_to_api')
         success = youtube_processor.send_to_external_api(video_info, song_url, cover_url)
         
         if success:
+            counters.update({'success': 1, 'processed': 1, 'pending': 0})
             task_manager.update_task(task_id, 'completed', 'Video processed successfully', {
                 'video_info': video_info,
                 'song_url': song_url,
                 'cover_url': cover_url
-            })
+            }, progress_data={'counters': counters, 'last_video_status': 'success'})
         else:
-            task_manager.update_task(task_id, 'failed', 'Failed to send to external API')
+            counters.update({'error': 1, 'pending': 0})
+            task_manager.update_task(task_id, 'failed', 'Failed to send to external API',
+                                   progress_data={'counters': counters, 'last_video_status': 'error'})
             
     except Exception as e:
         app.logger.error(f"Error in background processing: {str(e)}")
-        task_manager.update_task(task_id, 'failed', f'Processing error: {str(e)}')
+        counters = {'total': 1, 'processed': 0, 'success': 0, 'error': 1, 'exists': 0, 'skipped_duration': 0, 'pending': 0}
+        task_manager.update_task(task_id, 'failed', f'Processing error: {str(e)}',
+                               progress_data={'counters': counters, 'last_video_status': 'error'})
 
 def _process_playlist_background(task_id, url, skip, limit):
     """Background function to process a playlist"""
     try:
-        task_manager.update_task(task_id, 'processing', 'Extracting playlist information...')
+        task_manager.update_task(task_id, 'processing', 'Extracting playlist information...',
+                                detailed_status='extracting_playlist')
         
         videos = youtube_processor.extract_playlist_videos(url, skip, limit)
         if not videos:
@@ -214,19 +246,42 @@ def _process_playlist_background(task_id, url, skip, limit):
             return
         
         total_videos = len(videos)
-        processed = 0
-        successful = 0
+        counters = {
+            'total': total_videos,
+            'processed': 0,
+            'success': 0,
+            'error': 0,
+            'exists': 0,
+            'skipped_duration': 0,
+            'pending': total_videos
+        }
         
         for i, video_info in enumerate(videos):
+            current_progress = f'{i+1}/{total_videos}'
             task_manager.update_task(task_id, 'processing', 
-                f'Processing video {i+1}/{total_videos}: {video_info["title"]}', 
-                {'progress': f'{i+1}/{total_videos}'})
+                f'Processing video {i+1}/{total_videos}: {video_info["title"]}',
+                detailed_status='processing_video',
+                progress_data={'progress': current_progress, 'counters': counters})
             
             try:
+                # Check duration filter
+                if not youtube_processor.is_duration_valid(video_info['duration']):
+                    counters['skipped_duration'] += 1
+                    counters['pending'] -= 1
+                    app.logger.info(f"Video {video_info['title']} skipped - invalid duration")
+                    task_manager.update_task(task_id, 'processing', 
+                        f'Processing video {i+1}/{total_videos}: {video_info["title"]} (skipped - duration)',
+                        progress_data={'last_video_status': 'skipped_duration', 'counters': counters})
+                    continue
+                
                 # Check if song already exists
                 if youtube_processor.check_song_exists(video_info['id'], video_info['title']):
+                    counters['exists'] += 1
+                    counters['pending'] -= 1
                     app.logger.info(f"Song {video_info['title']} already exists, skipping")
-                    processed += 1
+                    task_manager.update_task(task_id, 'processing', 
+                        f'Processing video {i+1}/{total_videos}: {video_info["title"]} (exists)',
+                        progress_data={'last_video_status': 'exists', 'counters': counters})
                     continue
                 
                 # Download and process
@@ -235,17 +290,44 @@ def _process_playlist_background(task_id, url, skip, limit):
                     song_url, cover_url = cloudinary_uploader.upload_media(audio_path, thumbnail_path, video_info)
                     if song_url:
                         if youtube_processor.send_to_external_api(video_info, song_url, cover_url):
-                            successful += 1
-                
-                processed += 1
+                            counters['success'] += 1
+                            counters['processed'] += 1
+                            counters['pending'] -= 1
+                            task_manager.update_task(task_id, 'processing', 
+                                f'Processing video {i+1}/{total_videos}: {video_info["title"]} (success)',
+                                progress_data={'last_video_status': 'success', 'counters': counters})
+                        else:
+                            counters['error'] += 1
+                            counters['pending'] -= 1
+                            task_manager.update_task(task_id, 'processing', 
+                                f'Processing video {i+1}/{total_videos}: {video_info["title"]} (api error)',
+                                progress_data={'last_video_status': 'error', 'counters': counters})
+                    else:
+                        counters['error'] += 1
+                        counters['pending'] -= 1
+                        task_manager.update_task(task_id, 'processing', 
+                            f'Processing video {i+1}/{total_videos}: {video_info["title"]} (upload error)',
+                            progress_data={'last_video_status': 'error', 'counters': counters})
+                else:
+                    counters['error'] += 1
+                    counters['pending'] -= 1
+                    task_manager.update_task(task_id, 'processing', 
+                        f'Processing video {i+1}/{total_videos}: {video_info["title"]} (download error)',
+                        progress_data={'last_video_status': 'error', 'counters': counters})
                 
             except Exception as e:
+                counters['error'] += 1
+                counters['pending'] -= 1
                 app.logger.error(f"Error processing video {video_info['title']}: {str(e)}")
-                processed += 1
+                task_manager.update_task(task_id, 'processing', 
+                    f'Processing video {i+1}/{total_videos}: {video_info["title"]} (error)',
+                    progress_data={'last_video_status': 'error', 'counters': counters})
         
+        success_rate = (counters['success'] / counters['total'] * 100) if counters['total'] > 0 else 0
         task_manager.update_task(task_id, 'completed', 
-            f'Playlist processed: {successful}/{processed} videos successful', 
-            {'total': total_videos, 'processed': processed, 'successful': successful})
+            f'Playlist completed: {counters["success"]}/{counters["total"]} successful ({success_rate:.1f}%)', 
+            {'total': counters['total'], 'processed': counters['processed'], 'successful': counters['success']},
+            progress_data={'counters': counters})
             
     except Exception as e:
         app.logger.error(f"Error in playlist processing: {str(e)}")
@@ -254,7 +336,8 @@ def _process_playlist_background(task_id, url, skip, limit):
 def _process_channel_background(task_id, url, skip, limit):
     """Background function to process a channel"""
     try:
-        task_manager.update_task(task_id, 'processing', 'Extracting channel videos...')
+        task_manager.update_task(task_id, 'processing', 'Extracting channel videos...',
+                                detailed_status='extracting_channel')
         
         videos = youtube_processor.extract_channel_videos(url, skip, limit)
         if not videos:
@@ -262,19 +345,42 @@ def _process_channel_background(task_id, url, skip, limit):
             return
         
         total_videos = len(videos)
-        processed = 0
-        successful = 0
+        counters = {
+            'total': total_videos,
+            'processed': 0,
+            'success': 0,
+            'error': 0,
+            'exists': 0,
+            'skipped_duration': 0,
+            'pending': total_videos
+        }
         
         for i, video_info in enumerate(videos):
+            current_progress = f'{i+1}/{total_videos}'
             task_manager.update_task(task_id, 'processing', 
-                f'Processing video {i+1}/{total_videos}: {video_info["title"]}', 
-                {'progress': f'{i+1}/{total_videos}'})
+                f'Processing video {i+1}/{total_videos}: {video_info["title"]}',
+                detailed_status='processing_video',
+                progress_data={'progress': current_progress, 'counters': counters})
             
             try:
+                # Check duration filter
+                if not youtube_processor.is_duration_valid(video_info['duration']):
+                    counters['skipped_duration'] += 1
+                    counters['pending'] -= 1
+                    app.logger.info(f"Video {video_info['title']} skipped - invalid duration")
+                    task_manager.update_task(task_id, 'processing', 
+                        f'Processing video {i+1}/{total_videos}: {video_info["title"]} (skipped - duration)',
+                        progress_data={'last_video_status': 'skipped_duration', 'counters': counters})
+                    continue
+                
                 # Check if song already exists
                 if youtube_processor.check_song_exists(video_info['id'], video_info['title']):
+                    counters['exists'] += 1
+                    counters['pending'] -= 1
                     app.logger.info(f"Song {video_info['title']} already exists, skipping")
-                    processed += 1
+                    task_manager.update_task(task_id, 'processing', 
+                        f'Processing video {i+1}/{total_videos}: {video_info["title"]} (exists)',
+                        progress_data={'last_video_status': 'exists', 'counters': counters})
                     continue
                 
                 # Download and process
@@ -283,17 +389,44 @@ def _process_channel_background(task_id, url, skip, limit):
                     song_url, cover_url = cloudinary_uploader.upload_media(audio_path, thumbnail_path, video_info)
                     if song_url:
                         if youtube_processor.send_to_external_api(video_info, song_url, cover_url):
-                            successful += 1
-                
-                processed += 1
+                            counters['success'] += 1
+                            counters['processed'] += 1
+                            counters['pending'] -= 1
+                            task_manager.update_task(task_id, 'processing', 
+                                f'Processing video {i+1}/{total_videos}: {video_info["title"]} (success)',
+                                progress_data={'last_video_status': 'success', 'counters': counters})
+                        else:
+                            counters['error'] += 1
+                            counters['pending'] -= 1
+                            task_manager.update_task(task_id, 'processing', 
+                                f'Processing video {i+1}/{total_videos}: {video_info["title"]} (api error)',
+                                progress_data={'last_video_status': 'error', 'counters': counters})
+                    else:
+                        counters['error'] += 1
+                        counters['pending'] -= 1
+                        task_manager.update_task(task_id, 'processing', 
+                            f'Processing video {i+1}/{total_videos}: {video_info["title"]} (upload error)',
+                            progress_data={'last_video_status': 'error', 'counters': counters})
+                else:
+                    counters['error'] += 1
+                    counters['pending'] -= 1
+                    task_manager.update_task(task_id, 'processing', 
+                        f'Processing video {i+1}/{total_videos}: {video_info["title"]} (download error)',
+                        progress_data={'last_video_status': 'error', 'counters': counters})
                 
             except Exception as e:
+                counters['error'] += 1
+                counters['pending'] -= 1
                 app.logger.error(f"Error processing video {video_info['title']}: {str(e)}")
-                processed += 1
+                task_manager.update_task(task_id, 'processing', 
+                    f'Processing video {i+1}/{total_videos}: {video_info["title"]} (error)',
+                    progress_data={'last_video_status': 'error', 'counters': counters})
         
+        success_rate = (counters['success'] / counters['total'] * 100) if counters['total'] > 0 else 0
         task_manager.update_task(task_id, 'completed', 
-            f'Channel processed: {successful}/{processed} videos successful', 
-            {'total': total_videos, 'processed': processed, 'successful': successful})
+            f'Channel completed: {counters["success"]}/{counters["total"]} successful ({success_rate:.1f}%)', 
+            {'total': counters['total'], 'processed': counters['processed'], 'successful': counters['success']},
+            progress_data={'counters': counters})
             
     except Exception as e:
         app.logger.error(f"Error in channel processing: {str(e)}")

@@ -40,7 +40,18 @@ class YouTubeProcessor:
     def extract_video_info(self, url):
         """Extract video information from a YouTube URL"""
         try:
-            with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
+            ydl_opts = {'quiet': True}
+            
+            # Add cookies if available
+            cookie_path = os.path.join(os.getcwd(), 'cookies.txt')
+            if os.path.exists(cookie_path):
+                if self._validate_cookie_format(cookie_path):
+                    ydl_opts['cookiefile'] = cookie_path
+                    logging.info("Using cookies.txt for authentication")
+                else:
+                    logging.warning("cookies.txt format invalid, proceeding without cookies")
+            
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
                 
                 if not info:
@@ -56,7 +67,7 @@ class YouTubeProcessor:
                     'url': url
                 }
                 
-                logging.info(f"Extracted info for video: {video_info['title']}")
+                logging.info(f"Extracted info for video: {video_info['title']} (Duration: {video_info['duration']}s)")
                 return video_info
                 
         except Exception as e:
@@ -149,8 +160,17 @@ class YouTubeProcessor:
         thumbnail_path = None
         
         try:
+            # Add cookies to download options if available
+            audio_opts = self.ydl_opts_audio.copy()
+            thumbnail_opts = self.ydl_opts_thumbnail.copy()
+            
+            cookie_path = os.path.join(os.getcwd(), 'cookies.txt')
+            if os.path.exists(cookie_path) and self._validate_cookie_format(cookie_path):
+                audio_opts['cookiefile'] = cookie_path
+                thumbnail_opts['cookiefile'] = cookie_path
+            
             # Download audio
-            with yt_dlp.YoutubeDL(self.ydl_opts_audio) as ydl:
+            with yt_dlp.YoutubeDL(audio_opts) as ydl:
                 ydl.download([video_info['url']])
                 
                 # Find the downloaded audio file
@@ -162,7 +182,7 @@ class YouTubeProcessor:
             
             # Download thumbnail
             try:
-                with yt_dlp.YoutubeDL(self.ydl_opts_thumbnail) as ydl:
+                with yt_dlp.YoutubeDL(thumbnail_opts) as ydl:
                     ydl.download([video_info['url']])
                     
                     # Find the downloaded thumbnail
@@ -239,3 +259,69 @@ class YouTubeProcessor:
                     logging.debug(f"Cleaned up temp file: {file_path}")
                 except Exception as e:
                     logging.warning(f"Could not remove temp file {file_path}: {str(e)}")
+
+    def _validate_cookie_format(self, cookie_path):
+        """Validate if cookies.txt is in Netscape format"""
+        try:
+            with open(cookie_path, 'r') as f:
+                lines = f.readlines()
+            
+            # Check for Netscape format header
+            if not lines:
+                return False
+            
+            # Look for the Netscape header or valid cookie entries
+            has_netscape_header = any('Netscape HTTP Cookie File' in line for line in lines[:5])
+            has_valid_cookies = False
+            
+            for line in lines:
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    parts = line.split('\t')
+                    if len(parts) >= 6:  # Valid Netscape cookie format has at least 6 tab-separated fields
+                        has_valid_cookies = True
+                        break
+            
+            if has_netscape_header or has_valid_cookies:
+                return True
+            
+            # Try to convert if it's not in proper format
+            return self._try_convert_cookie_format(cookie_path)
+            
+        except Exception as e:
+            logging.error(f"Error validating cookie format: {str(e)}")
+            return False
+
+    def _try_convert_cookie_format(self, cookie_path):
+        """Try to convert cookies to Netscape format"""
+        try:
+            # This is a basic conversion attempt - in practice, you might need
+            # more sophisticated parsing depending on the input format
+            logging.warning("Attempting to convert cookies to Netscape format")
+            
+            backup_path = cookie_path + '.backup'
+            os.rename(cookie_path, backup_path)
+            
+            with open(backup_path, 'r') as f:
+                content = f.read()
+            
+            # If it looks like JSON (common export format)
+            if content.strip().startswith('[') or content.strip().startswith('{'):
+                logging.error("JSON cookie format detected - automatic conversion not supported")
+                os.rename(backup_path, cookie_path)  # Restore original
+                return False
+            
+            # Restore original file if conversion fails
+            os.rename(backup_path, cookie_path)
+            logging.warning("Could not convert cookie format automatically")
+            return False
+            
+        except Exception as e:
+            logging.error(f"Error converting cookie format: {str(e)}")
+            return False
+
+    def is_duration_valid(self, duration):
+        """Check if video duration is between 2 and 8 minutes"""
+        if not duration:
+            return False
+        return 120 <= duration <= 480  # 2 minutes to 8 minutes in seconds
