@@ -1,1 +1,2 @@
-MediaCloudSync/
+.env
+node_modules/
