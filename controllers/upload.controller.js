@@ -12,14 +12,12 @@ cloudinary.config({
 
 export const uploadSong = async path => {
     try {
-        console.log("uploading song started... ", path);
         const result = await cloudinary.uploader.upload(path, {
             folder: "songs",
             use_filename: true,
             resource_type: "video"
         });
-        console.log("uploading song finished");
-
+        
         return result.secure_url;
     } catch (e) {
         console.error(e);
@@ -28,12 +26,10 @@ export const uploadSong = async path => {
 
 export const uploadImage = async path => {
     try {
-        console.log("uploading image started... ", path);
         const result = await cloudinary.uploader.upload(path, {
             folder: "images",
             use_filename: true
         });
-        console.log("uploading image finished");
         return result.secure_url;
     } catch (e) {
         console.error(e);

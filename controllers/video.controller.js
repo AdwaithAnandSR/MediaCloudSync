@@ -69,14 +69,12 @@ const uploadFromVideo = videoUrl => {
             const coverPath = path.join(parsed.dir, parsed.name + ".jpg");
 
             updateStatus(processId, { currentStatus: "Uploading..." })
-            console.log("uploading to Cloudinary....");
             const [songPublicUrl, coverPublicUrl] = await Promise.all([
                 uploadSong(audioPath),
                 uploadImage(coverPath)
             ]);
 
             updateStatus(processId, { currentStatus: "Uploaded successfully 🥳" })
-            console.log("Uploaded URLs:", songPublicUrl, coverPublicUrl);
 
             if (songPublicUrl && coverPublicUrl) {
                 updateStatus(processId, { currentStatus: "Updating database..." })
