@@ -15,6 +15,8 @@ class CloudinaryUploader:
             api_key=os.getenv('CLOUDINARY_API_KEY'),
             api_secret=os.getenv('CLOUDINARY_API_SECRET')
         )
+
+                    logging.info(f"\n\n\n\nCloudinary: {cloudinary}\n\n\n\n")
         
         # Verify configuration
         if not all([
