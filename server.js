@@ -16,7 +16,7 @@ import uploadFromVideo from "./controllers/video.controller.js"
 import { getVideos } from "./store/video.store.js"
 
 app.get("/", (req, res)=>{
-    res.render("index", {title: "Media Cloud Sync" })
+    res.render("index", {title: "Media Cloud Sync", API: process.env.API })
 })
 
 app.get("/status", (req, res)=>{

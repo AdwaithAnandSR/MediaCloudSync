@@ -35,7 +35,7 @@
   
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script>
-        const api = "https://mediacloudsync.onrender.com/"
+        const api = "<%=API%>"
         const handleDownloadVideo = async()=>{
             const url = document.getElementById("videoUrl").value.toString()
             axios.post(`${api}/processVideo`, { url })
