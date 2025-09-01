@@ -16,8 +16,7 @@ class CloudinaryUploader:
             api_secret=os.getenv('CLOUDINARY_API_SECRET')
         )
 
-                    logging.info(f"\n\n\n\nCloudinary: {cloudinary}\n\n\n\n")
-        
+                    
         # Verify configuration
         if not all([
             os.getenv('CLOUDINARY_CLOUD_NAME'),
@@ -26,6 +25,16 @@ class CloudinaryUploader:
         ]):
             logging.error("Cloudinary credentials not properly configured")
             raise ValueError("Cloudinary credentials missing in environment variables")
+
+        # ✅ Verify Cloudinary connection
+        try:
+            result = cloudinary.api.ping()
+            logging.info(f"Connected to Cloudinary successfully: {result}")
+        except Exception as e:
+            logging.error(f"Cloudinary connection failed: {str(e)}")
+            raise
+
+
 
     def upload_media(self, audio_path, thumbnail_path, video_info):
         """Upload audio and thumbnail to Cloudinary with immediate cleanup"""
