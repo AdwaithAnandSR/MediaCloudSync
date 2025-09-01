@@ -29,6 +29,8 @@ const uploadFromVideo = videoUrl => {
         "-o",
         path.join(downloadFolder, "%(title)s.%(ext)s"),
         "--print-json",
+        "--cookies",
+        "../cookies.txt",
         videoUrl
     ];
 
@@ -68,7 +70,7 @@ const uploadFromVideo = videoUrl => {
             const audioPath = path.join(parsed.dir, parsed.name + ".mp3");
             const coverPath = path.join(parsed.dir, parsed.name + ".jpg");
 
-            updateStatus(processId, { currentStatus: "Uploading..." })
+            updateStatus(processId, { currentStatus: "Uploading...", coverPath, audioPath })
             const [songPublicUrl, coverPublicUrl] = await Promise.all([
                 uploadSong(audioPath),
                 uploadImage(coverPath)
@@ -93,9 +95,6 @@ const uploadFromVideo = videoUrl => {
                 if (data.success) {
                     try {
                         updateStatus(processId, { currentStatus: "Process Completed 🥳", status: "SUCCESS"})
-                        fs.unlinkSync(audioPath);
-                        fs.unlinkSync(coverPath);
-                        console.log("files deleted successfully");
                     } catch (err) {
                         updateStatus(processId, { currentStatus: "file cleanup failed!", status: "FAIL", error: err})
                         console.error("Error deleting files:", err);

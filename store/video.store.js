@@ -21,7 +21,13 @@ export const updateStatus = (id, updates)=>{
     const video = videos.find(vid=> vid.id === id)
     if(video){
         Object.assign(video, updates)
-        console.log("\n\tupdated......", updates)
+        if(updates?.status === "FAIL" || updates?.status === "SUCCESS"){
+            if(video.audioPath && video.coverPath){
+                fs.unlinkSync(video.audioPath);
+                fs.unlinkSync(video.coverPath);
+                console.log("files deleted successfully");
+            }
+        }
     }else{
         console.log("update video failed for id: ", id)
     }
