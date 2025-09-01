@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="css/index.css" type="text/css" media="all" />
+</head>
+<body>
+  <h1><%= title %></h1>
+  
+  <div id="status">
+      
+  </div>
+  
+  
+  <div id="box">
+      <h2>Video URL</h2>
+      <input id="videoUrl" type="url" placeholder="video url..." />
+      <button onclick="handleDownloadVideo()">Process Video</button>
+  </div>
+  <div id="box">
+      <h2>Playlist URL</h2>
+      <input id="playlistUrl" placeholder="Playlist url..." />
+      <input id="pskip" value="0" type="number" />
+      <input id="plimit" value="10" type="number" />
+      <button id="playlistDownload">Process Playlist</button>
+  </div>
+  <div id="box">
+      <h2>Channel URL</h2>
+      <input id="channelUrl" placeholder="Channel url..." />
+      <input id="cskip" value="0" type="number" />
+      <input id="climit" value="10" type="number" />
+      <button >Process Channel</button>
+  </div>
+  
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        const api = "http://localhost:5000"
+        const handleDownloadVideo = async()=>{
+            const url = document.getElementById("videoUrl").value.toString()
+            axios.post(`${api}/processVideo`, { url })
+        }
+      
+        const getStatus = async()=>{
+            const res = await axios.get(`${api}/status`)
+            const status = res?.data?.status || []
+            
+            status.map(item=>{
+                
+                const exist = document.getElementById(item.id)
+                if(exist){
+                    const cs = exist.querySelector("#currentStatus").innerText
+                    const t = exist.querySelector("#title").innerText
+                    if(cs != `current status: ${item.currentStatus}`)
+                        exist.querySelector("#currentStatus").innerText = `current status: ${item.currentStatus}`
+                    
+                    if(item.title && t != `title: ${item?.title}`)
+                        exist.querySelector("#title").innerText = `title: ${item?.title}`
+                        
+                    if(item.status === "EXIST") exist.style.border = "8px solid #f77543"
+                }else{
+                    const div = document.createElement("div")
+                    const pid = document.createElement("h3")
+                    const url = document.createElement("h3")
+                    const cStatus = document.createElement("h2")
+                    const title = document.createElement("h2")
+                    
+                    div.className = "box"
+                    div.id = item.id
+                    pid.id = "pid"
+                    url.id = "url"
+                    title.id = "title"
+                    cStatus.id = "currentStatus"
+                    div.style.border = "8px solid #fbc315"
+                    
+                    pid.innerText = `processId: ${item.id}`
+                    url.innerText = `url: ${item.url}`
+                    title.innerText = `title: fetching...`
+                    cStatus.innerText = `current status: ${item.currentStatus}`
+                    
+                    div.append(pid)
+                    div.append(url)
+                    div.append(title)
+                    div.append(cStatus)
+                    document.getElementById("status").append(div)
+                }
+            })
+        }
+          
+      
+        setInterval(()=>{
+            getStatus()
+        }, 1000) 
+      
+    </script>
+  
+</body>
+</html>
+
