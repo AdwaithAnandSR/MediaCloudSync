@@ -58,6 +58,8 @@
                         exist.querySelector("#title").innerText = `title: ${item?.title}`
                         
                     if(item.status === "EXIST") exist.style.border = "8px solid #f77543"
+                    else if(item.status === "FAIL") exist.style.border = "8px solid red"
+                    else if(item.status === "SUCCESS") exist.style.border = "8px solid #26ec40"
                 }else{
                     const div = document.createElement("div")
                     const pid = document.createElement("h3")

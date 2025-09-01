@@ -1,18 +1,20 @@
 import { spawn } from "child_process";
 import path from "path";
-import fs from "fs";
+import { fileURLToPath } from "url";
 import axios from "axios";
 
 import { uploadImage, uploadSong } from "./upload.controller.js";
-import { generateId, addVideo, updateStatus } from "../store/video.store.js"
+import { generateId, addVideo, updateStatus } from "../store/video.store.js";
 
-// const videoUrl = "https://youtu.be/deLx_66gGHI?si=b767karJB36VfABE";
 const downloadFolder = "downloads/";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const uploadFromVideo = videoUrl => {
-    const processId = generateId()
-    addVideo(processId, videoUrl)
-    
+    const processId = generateId();
+    addVideo(processId, videoUrl);
+
     const args = [
         "-f",
         "bestaudio",
@@ -30,7 +32,8 @@ const uploadFromVideo = videoUrl => {
         path.join(downloadFolder, "%(title)s.%(ext)s"),
         "--print-json",
         "--cookies",
-        "../cookies.txt",
+        path.resolve(__dirname, "../cookies.txt"),
+
         videoUrl
     ];
 
@@ -42,7 +45,11 @@ const uploadFromVideo = videoUrl => {
     });
 
     ytdlp.stderr.on("data", data => {
-        updateStatus(processId, { currentStatus: "ytdlp failed!", status: "FAIL", error: data.toString()})
+        updateStatus(processId, {
+            currentStatus: "ytdlp failed!",
+            status: "FAIL",
+            error: data.toString()
+        });
         console.error("yt-dlp error:", data.toString());
     });
 
@@ -55,14 +62,20 @@ const uploadFromVideo = videoUrl => {
             const id = info.id;
             const artist = "unknown";
 
-            updateStatus(processId, { currentStatus: "checking database...", title })
+            updateStatus(processId, {
+                currentStatus: "checking database...",
+                title
+            });
             const isExistsRes = await axios.post(
                 "https://vivid-music.vercel.app/checkSongExistsByYtId",
                 { id, title }
             );
 
             if (isExistsRes.data.exists) {
-                updateStatus(processId, { currentStatus: "song already exist.", status: "EXIST"})
+                updateStatus(processId, {
+                    currentStatus: "song already exist.",
+                    status: "EXIST"
+                });
                 return false;
             }
 
@@ -70,16 +83,24 @@ const uploadFromVideo = videoUrl => {
             const audioPath = path.join(parsed.dir, parsed.name + ".mp3");
             const coverPath = path.join(parsed.dir, parsed.name + ".jpg");
 
-            updateStatus(processId, { currentStatus: "Uploading...", coverPath, audioPath })
+            updateStatus(processId, {
+                currentStatus: "Uploading...",
+                coverPath,
+                audioPath
+            });
             const [songPublicUrl, coverPublicUrl] = await Promise.all([
                 uploadSong(audioPath),
                 uploadImage(coverPath)
             ]);
 
-            updateStatus(processId, { currentStatus: "Uploaded successfully 🥳" })
+            updateStatus(processId, {
+                currentStatus: "Uploaded successfully 🥳"
+            });
 
             if (songPublicUrl && coverPublicUrl) {
-                updateStatus(processId, { currentStatus: "Updating database..." })
+                updateStatus(processId, {
+                    currentStatus: "Updating database..."
+                });
                 console.log("uploading to database....");
                 const { data } = await axios.post(
                     "https://vivid-music.vercel.app/addSong",
@@ -94,25 +115,44 @@ const uploadFromVideo = videoUrl => {
                 );
                 if (data.success) {
                     try {
-                        updateStatus(processId, { currentStatus: "Process Completed 🥳", status: "SUCCESS"})
+                        updateStatus(processId, {
+                            currentStatus: "Process Completed 🥳",
+                            status: "SUCCESS"
+                        });
                     } catch (err) {
-                        updateStatus(processId, { currentStatus: "file cleanup failed!", status: "FAIL", error: err})
+                        updateStatus(processId, {
+                            currentStatus: "file cleanup failed!",
+                            status: "FAIL",
+                            error: err
+                        });
                         console.error("Error deleting files:", err);
                     }
-                }
-                else
-                    updateStatus(processId, { currentStatus: "Updating database failed!", status: "FAIL"})
-            }
-            else
-                updateStatus(processId, { currentStatus: "Updating to cloudinary failed!", status: "FAIL"})
+                } else
+                    updateStatus(processId, {
+                        currentStatus: "Updating database failed!",
+                        status: "FAIL"
+                    });
+            } else
+                updateStatus(processId, {
+                    currentStatus: "Updating to cloudinary failed!",
+                    status: "FAIL"
+                });
         } catch (err) {
-            updateStatus(processId, { currentStatus: "Process failed!", status: "FAIL", error: err})
+            updateStatus(processId, {
+                currentStatus: "Process failed!",
+                status: "FAIL",
+                error: err
+            });
             console.error("Processing error:", err);
         }
     });
 
     ytdlp.on("error", err => {
-        updateStatus(processId, { currentStatus: "ytdlp failed!", status: "FAIL", error: err})
+        updateStatus(processId, {
+            currentStatus: "ytdlp failed!",
+            status: "FAIL",
+            error: err
+        });
         console.error("Failed to start yt-dlp:", err);
     });
 };
