@@ -7,7 +7,6 @@ import cloudinary from "cloudinary";
 import dotenv from "dotenv";
 dotenv.config();
 
-
 import { addStatus, updateStatus, getStatus } from "../store/channel.store.js";
 
 cloudinary.v2.config({
@@ -70,7 +69,17 @@ export async function processChannel(channelName, skip = 0, limit = 10) {
             "--print-json",
             "--playlist-end",
             String(skip + limit),
-            "--cookies" , COOKIES_FILE
+            "--extractor-args",
+            "youtubetab:skip=authcheck",
+            "--user-agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+            "--retries",
+            "infinite",
+            "--fragment-retries",
+            "infinite",
+
+            "--cookies",
+            COOKIES_FILE
         ]);
 
         console.log("info fetched 📝");
@@ -92,7 +101,22 @@ export async function processChannel(channelName, skip = 0, limit = 10) {
 
             try {
                 // ✅ get full metadata
-                const metaOut = await runYtDlp(["-j", "--no-playlist", "--cookies", COOKIES_FILE, url]);
+                const metaOut = await runYtDlp([
+                    "-j",
+                    "--no-playlist",
+                    "--extractor-args",
+                    "youtubetab:skip=authcheck",
+                    "--user-agent",
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                    "--retries",
+                    "infinite",
+                    "--fragment-retries",
+                    "infinite",
+
+                    "--cookies",
+                    COOKIES_FILE,
+                    url
+                ]);
                 const meta = JSON.parse(metaOut);
 
                 const duration = meta.duration || 0;
@@ -140,9 +164,20 @@ export async function processChannel(channelName, skip = 0, limit = 10) {
                     "mp3",
                     "-o",
                     `${videoId}.%(ext)s`,
-                    "--sleep-interval", "5",
-                    "--max-sleep-interval", "15",
-                    "--cookies", COOKIES_FILE,
+                    "--sleep-interval",
+                    "5",
+                    "--max-sleep-interval",
+                    "15",
+                    "--extractor-args",
+                    "youtubetab:skip=authcheck",
+                    "--user-agent",
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                    "--cookies",
+                    "--retries",
+                    "infinite",
+                    "--fragment-retries",
+                    "infinite",
+                    COOKIES_FILE,
                     url
                 ]);
 
