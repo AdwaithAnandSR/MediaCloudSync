@@ -9,12 +9,16 @@ dotenv.config();
 
 import { addStatus, updateStatus, getStatus } from "../store/channel.store.js";
 
+// ✅ Cloudinary config
 cloudinary.v2.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET
 });
-const COOKIES_FILE = path.resolve("cookies.txt"); // root folder
+
+const COOKIES_FILE = path.resolve("cookies.txt");
+const TMP_DIR = path.resolve("tmp");
+if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR);
 
 function runYtDlp(args) {
     return new Promise((resolve, reject) => {
@@ -33,7 +37,7 @@ function runYtDlp(args) {
         proc.on("close", code => {
             if (code === 0) resolve(output);
             else {
-                console.error(error);
+                console.error("yt-dlp error:", error);
                 reject(new Error(error || "yt-dlp failed"));
             }
         });
@@ -42,6 +46,13 @@ function runYtDlp(args) {
 
 function get(processId) {
     return getStatus().find(s => s.id === processId) || {};
+}
+
+function markSkip(processId, reason) {
+    updateStatus(processId, {
+        skipCount: get(processId).skipCount + 1,
+        currentStatus: `SKIPPED (${reason})`
+    });
 }
 
 export async function processChannel(channelName, skip = 0, limit = 10) {
@@ -57,13 +68,17 @@ export async function processChannel(channelName, skip = 0, limit = 10) {
         failCount: 0,
         skipCount: 0,
         status: "PROCESSING",
-        currentStatus: "Fetching videos..."
+        currentStatus: "Fetching videos...",
+        progress: 0
     });
 
     try {
-        // ✅ fetch playlist metadata
+        const baseUrl = channelName.startsWith("http")
+            ? channelName
+            : `https://www.youtube.com/${channelName}`;
+
         const info = await runYtDlp([
-            `https://www.youtube.com/${channelName}/videos`,
+            baseUrl,
             "--skip-download",
             "--flat-playlist",
             "--print-json",
@@ -73,11 +88,6 @@ export async function processChannel(channelName, skip = 0, limit = 10) {
             "youtubetab:skip=authcheck",
             "--user-agent",
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-            "--retries",
-            "infinite",
-            "--fragment-retries",
-            "infinite",
-
             "--cookies",
             COOKIES_FILE
         ]);
@@ -92,7 +102,10 @@ export async function processChannel(channelName, skip = 0, limit = 10) {
 
         for (let i = 0; i < videos.length; i++) {
             const v = videos[i];
-            updateStatus(processId, { currentProcessing: i + 1 });
+            updateStatus(processId, {
+                currentProcessing: i + 1,
+                progress: Math.round(((i + 1) / videos.length) * 100)
+            });
 
             const videoId = v.id;
             const url = `https://youtube.com/watch?v=${videoId}`;
@@ -112,58 +125,52 @@ export async function processChannel(channelName, skip = 0, limit = 10) {
                     "infinite",
                     "--fragment-retries",
                     "infinite",
-
                     "--cookies",
                     COOKIES_FILE,
                     url
                 ]);
-                const meta = JSON.parse(metaOut);
 
-                const duration = meta.duration || 0;
-                const title = meta.title || "Unknown";
-
-                updateStatus(processId, { title });
-
-                // ✅ skip if not Music
-                if (meta.categories && !meta.categories.includes("Music")) {
-                    updateStatus(processId, {
-                        skipCount: get(processId).skipCount + 1,
-                        currentStatus: "SKIPPED (not Music)"
-                    });
+                let meta;
+                try {
+                    meta = JSON.parse(metaOut);
+                } catch (e) {
+                    markSkip(processId, "Invalid JSON");
                     continue;
                 }
 
-                // ✅ check if exists
+                const duration = meta.duration || 0;
+                const title = meta.title || "Unknown";
+                updateStatus(processId, { title });
+
+                // ✅ skip logic
+                if (meta.categories && !meta.categories.includes("Music")) {
+                    markSkip(processId, "not Music");
+                    continue;
+                }
+
                 const isExistsRes = await axios.post(
                     "https://vivid-music.vercel.app/checkSongExistsByYtId",
                     { id: videoId, title }
                 );
 
                 if (isExistsRes.data.exists) {
-                    updateStatus(processId, {
-                        skipCount: get(processId).skipCount + 1,
-                        currentStatus: "SKIPPED (already exists)"
-                    });
+                    markSkip(processId, "already exists");
                     continue;
                 }
 
-                // ✅ duration filter
                 if (duration < 120 || duration > 480) {
-                    updateStatus(processId, {
-                        skipCount: get(processId).skipCount + 1,
-                        currentStatus: "SKIPPED (duration)"
-                    });
+                    markSkip(processId, "duration");
                     continue;
                 }
 
                 // ✅ download audio
-                outFile = path.resolve(`${videoId}.mp3`);
+                outFile = path.join(TMP_DIR, `${videoId}.mp3`);
                 await runYtDlp([
                     "-x",
                     "--audio-format",
                     "mp3",
                     "-o",
-                    `${videoId}.%(ext)s`,
+                    path.join(TMP_DIR, `${videoId}.%(ext)s`),
                     "--sleep-interval",
                     "5",
                     "--max-sleep-interval",
@@ -173,26 +180,26 @@ export async function processChannel(channelName, skip = 0, limit = 10) {
                     "--user-agent",
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
                     "--cookies",
+                    COOKIES_FILE,
                     "--retries",
                     "infinite",
                     "--fragment-retries",
                     "infinite",
-                    COOKIES_FILE,
                     url
                 ]);
 
-                // yt-dlp may create videoId.webm.mp3 etc → normalize
-                const files = fs.readdirSync(".");
+                // yt-dlp may create weird filenames → normalize
+                const files = fs.readdirSync(TMP_DIR);
                 const audioFile = files.find(
                     f => f.startsWith(videoId) && f.endsWith(".mp3")
                 );
                 if (!audioFile)
                     throw new Error("Audio file not found after yt-dlp");
-                outFile = path.resolve(audioFile);
+                outFile = path.join(TMP_DIR, audioFile);
 
                 // ✅ download thumbnail
                 if (meta.thumbnail) {
-                    coverFile = path.resolve(`${videoId}.jpg`);
+                    coverFile = path.join(TMP_DIR, `${videoId}.jpg`);
                     const img = await axios.get(meta.thumbnail, {
                         responseType: "arraybuffer"
                     });
@@ -203,7 +210,7 @@ export async function processChannel(channelName, skip = 0, limit = 10) {
                 const songUpload = await cloudinary.v2.uploader.upload(
                     outFile,
                     {
-                        resource_type: "video"
+                        resource_type: "auto"
                     }
                 );
 
@@ -239,7 +246,10 @@ export async function processChannel(channelName, skip = 0, limit = 10) {
                     });
                 }
             } catch (err) {
-                console.error(err);
+                console.error("Processing failed", {
+                    videoId,
+                    error: err.message
+                });
                 updateStatus(processId, {
                     failCount: get(processId).failCount + 1,
                     currentStatus: "ERROR"
@@ -254,7 +264,7 @@ export async function processChannel(channelName, skip = 0, limit = 10) {
 
         updateStatus(processId, { status: "COMPLETED", currentStatus: "Done" });
     } catch (err) {
-        console.error(err);
+        console.error("Channel fetch failed:", err.message);
         updateStatus(processId, {
             status: "FAIL",
             currentStatus: "Failed fetching channel"

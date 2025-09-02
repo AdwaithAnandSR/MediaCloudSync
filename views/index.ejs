@@ -57,6 +57,8 @@
                 div.className = "box";
                 div.id = item.id;
                 
+                
+                
                 const pid = document.createElement("h3");
                 pid.innerText = `processId: ${item.id}`;
                 div.append(pid);
@@ -97,19 +99,22 @@
                     const skipCount = document.createElement("h3");
                     skipCount.innerText = `Skipped: ${item.skipCount}`;
                     div.append(skipCount);
+                    
+                    const progress = document.createElement("progress");
+                    progress.id = item.id
+                    progress.max = "100"
+                    progress.value = item.progress
+                    div.append(progress)
                 }
 
                 // Set border color based on status
-                
-                
-                
                 let borderColor = "#fbc315"; // PROCESSING
                 if (item.status === "SUCCESS" || item.status === "COMPLETED") borderColor = "#26ec40";
                 if (item.status === "FAIL") borderColor = "red";
                 if (item.status === "EXIST" || item.status === "SKIPPED") borderColor = "blue";
                 div.style.border = `8px solid ${borderColor}`;
                 
-                statusDiv.prepend(div);
+                statusDiv.append(div);
             });
         };
       
