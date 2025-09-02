@@ -14,14 +14,15 @@ app.set("view engine", "ejs");
 app.use(express.static("public"));
 
 import uploadFromVideo from "./controllers/video.controller.js";
-import  { processChannel } from "./controllers/channel.controller.js";
-import  { processPlaylist } from "./controllers/playlist.controller.js";
+import { processChannel } from "./controllers/channel.controller.js";
+import { processPlaylist } from "./controllers/playlist.controller.js";
 import { getVideos } from "./store/video.store.js";
 import { getStatus } from "./store/channel.store.js";
 
 app.get("/health", (req, res) => {
-    res.json({status: "ok"})
-}
+    res.json({ status: "ok" });
+});
+
 app.get("/", (req, res) => {
     res.render("index", { title: "Media Cloud Sync", API: process.env.API });
 });
