@@ -19,6 +19,9 @@ import  { processPlaylist } from "./controllers/playlist.controller.js";
 import { getVideos } from "./store/video.store.js";
 import { getStatus } from "./store/channel.store.js";
 
+app.get("/health", (req, res) => {
+    res.json({status: "ok"})
+}
 app.get("/", (req, res) => {
     res.render("index", { title: "Media Cloud Sync", API: process.env.API });
 });
