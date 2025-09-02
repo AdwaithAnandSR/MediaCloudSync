@@ -15,6 +15,7 @@ app.use(express.static("public"));
 
 import uploadFromVideo from "./controllers/video.controller.js";
 import  { processChannel } from "./controllers/channel.controller.js";
+import  { processPlaylist } from "./controllers/playlist.controller.js";
 import { getVideos } from "./store/video.store.js";
 import { getStatus } from "./store/channel.store.js";
 
@@ -41,6 +42,18 @@ app.post("/processChannel", (req, res) => {
     if (channelId && !Number.isNaN(limit) && !Number.isNaN(skip)) {
         console.log("request received", channelId, limit, skip);
         processChannel(channelId, skip, limit); // async, fire and forget
+        return res.json({ success: true, message: "Processing started" });
+    }
+
+    res.status(400).json({ success: false, message: "Invalid input" });
+});
+
+app.post("/processPlayList", (req, res) => {
+    const { playlistId, limit, skip } = req.body;
+
+    if (channelId && !Number.isNaN(limit) && !Number.isNaN(skip)) {
+        console.log("request received", channelId, limit, skip);
+        processPlaylist(playlistId, skip, limit); // async, fire and forget
         return res.json({ success: true, message: "Processing started" });
     }
 

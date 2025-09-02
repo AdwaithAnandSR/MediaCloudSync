@@ -1,3 +1,4 @@
+// playlist.js
 import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
@@ -21,13 +22,8 @@ function runYtDlp(args) {
         let output = "";
         let error = "";
 
-        proc.stdout.on("data", data => {
-            output += data.toString();
-        });
-
-        proc.stderr.on("data", data => {
-            error += data.toString();
-        });
+        proc.stdout.on("data", data => (output += data.toString()));
+        proc.stderr.on("data", data => (error += data.toString()));
 
         proc.on("close", code => {
             if (code === 0) resolve(output);
@@ -36,12 +32,12 @@ function runYtDlp(args) {
     });
 }
 
-export async function processChannel(channelName, skip = 0, limit = 10) {
+export async function processPlaylist(playlistId, skip = 0, limit = 10) {
     const processId = uuidv4();
     addStatus({
         id: processId,
-        type: "channel",
-        channelId: channelName,
+        type: "playlist",
+        playlistId,
         skip,
         limit,
         currentProcessing: 0,
@@ -55,7 +51,7 @@ export async function processChannel(channelName, skip = 0, limit = 10) {
     try {
         // ✅ fetch playlist metadata async
         const info = await runYtDlp([
-            `https://www.youtube.com/${channelName}/videos`,
+            `https://www.youtube.com/playlist?list=${playlistId}`,
             "--skip-download",
             "--flat-playlist",
             "--print-json",
@@ -84,19 +80,9 @@ export async function processChannel(channelName, skip = 0, limit = 10) {
                 const duration = meta.duration || 0;
                 const title = meta.title || "Unknown";
 
-                updateStatus(processId, {
-                    title
-                });
+                updateStatus(processId, { title });
 
-                if (meta.categories && !meta.categories.includes("Music")) {
-                    updateStatus(processId, {
-                        skipCount: get(processId).skipCount + 1,
-                        currentStatus: "SKIPPED (not include Musics)"
-                    });
-                    return false;
-                }
-
-                // ✅ Check if song already exists (before download)
+                // ✅ Check if song already exists
                 const isExistsRes = await axios.post(
                     "https://vivid-music.vercel.app/checkSongExistsByYtId",
                     { id: videoId, title }
@@ -110,7 +96,7 @@ export async function processChannel(channelName, skip = 0, limit = 10) {
                     continue;
                 }
 
-                // ✅ Check duration range
+                // ✅ duration filter
                 if (duration < 120 || duration > 480) {
                     updateStatus(processId, {
                         skipCount: get(processId).skipCount + 1,
@@ -119,7 +105,7 @@ export async function processChannel(channelName, skip = 0, limit = 10) {
                     continue;
                 }
 
-                // ✅ download audio async
+                // ✅ download audio
                 const outFile = path.resolve(`${videoId}.mp3`);
                 await runYtDlp([
                     "-x",
@@ -189,7 +175,7 @@ export async function processChannel(channelName, skip = 0, limit = 10) {
     } catch (err) {
         updateStatus(processId, {
             status: "FAIL",
-            currentStatus: "Failed fetching channel"
+            currentStatus: "Failed fetching playlist"
         });
     }
 }
