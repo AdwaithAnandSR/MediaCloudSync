@@ -30,72 +30,103 @@
       <input id="channelUrl" placeholder="Channel url..." />
       <input id="cskip" value="0" type="number" />
       <input id="climit" value="10" type="number" />
-      <button >Process Channel</button>
+      <button onclick="handleDownloadChannel()">Process Channel</button>
   </div>
   
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script>
-        const api = "<%=API%>"
-        const handleDownloadVideo = async()=>{
-            const url = document.getElementById("videoUrl").value.toString()
-            axios.post(`${api}/processVideo`, { url })
-        }
+        const api = "<%=API%>";
+        const statusDiv = document.getElementById("status");
+
+        const handleDownloadVideo = async () => {
+            const url = document.getElementById("videoUrl").value.toString();
+            axios.post(`${api}/processVideo`, { url });
+        };
+        
+        const handleDownloadChannel = async () => {
+            const channelId = document.getElementById("channelUrl").value.toString();
+            const skip = parseInt(document.getElementById("cskip").value);
+            const limit = parseInt(document.getElementById("climit").value);
+            axios.post(`${api}/processChannel`, { channelId, skip, limit });
+        };
       
-        const getStatus = async()=>{
-            const res = await axios.get(`${api}/status`)
-            const status = res?.data?.status || []
-            
-            status.map(item=>{
+        const renderStatus = (statusList) => {
+            statusDiv.innerHTML = '';
+            statusList.forEach(item => {
+                const div = document.createElement("div");
+                div.className = "box";
+                div.id = item.id;
                 
-                const exist = document.getElementById(item.id)
-                if(exist){
-                    const cs = exist.querySelector("#currentStatus").innerText
-                    const t = exist.querySelector("#title").innerText
-                    if(cs != `current status: ${item.currentStatus}`)
-                        exist.querySelector("#currentStatus").innerText = `current status: ${item.currentStatus}`
+                const pid = document.createElement("h3");
+                pid.innerText = `processId: ${item.id}`;
+                div.append(pid);
+
+                const url = document.createElement("h3");
+                url.innerText = item.type === "channel" ? `channelId: ${item.channelId}` : `url: ${item.url}`;
+                div.append(url);
+                
+                const title = document.createElement("h2");
+                title.innerText = `title: ${item.title || 'fetching...'}`;
+                div.append(title);
+
+                const currentStatus = document.createElement("h2");
+                currentStatus.innerText = `current status: ${item.currentStatus}`;
+                div.append(currentStatus);
+
+                if (item.type === "channel") {
+                    const skip = document.createElement("h3");
+                    skip.innerText = `skip: ${item.skip}`;
+                    div.append(skip);
+
+                    const limit = document.createElement("h3");
+                    limit.innerText = `limit: ${item.limit}`;
+                    div.append(limit);
                     
-                    if(item.title && t != `title: ${item?.title}`)
-                        exist.querySelector("#title").innerText = `title: ${item?.title}`
-                        
-                    if(item.status === "EXIST") exist.style.border = "8px solid #f77543"
-                    else if(item.status === "FAIL") exist.style.border = "8px solid red"
-                    else if(item.status === "SUCCESS") exist.style.border = "8px solid #26ec40"
-                }else{
-                    const div = document.createElement("div")
-                    const pid = document.createElement("h3")
-                    const url = document.createElement("h3")
-                    const cStatus = document.createElement("h2")
-                    const title = document.createElement("h2")
-                    
-                    div.className = "box"
-                    div.id = item.id
-                    pid.id = "pid"
-                    url.id = "url"
-                    title.id = "title"
-                    cStatus.id = "currentStatus"
-                    div.style.border = "8px solid #fbc315"
-                    
-                    pid.innerText = `processId: ${item.id}`
-                    url.innerText = `url: ${item.url}`
-                    title.innerText = `title: fetching...`
-                    cStatus.innerText = `current status: ${item.currentStatus}`
-                    
-                    div.append(pid)
-                    div.append(url)
-                    div.append(title)
-                    div.append(cStatus)
-                    document.getElementById("status").append(div)
+                    const processed = document.createElement("h3");
+                    processed.innerText = `Process: ${item.currentProcessing}/${item.limit}`;
+                    div.append(processed);
+
+                    const successCount = document.createElement("h3");
+                    successCount.innerText = `Success: ${item.successCount}`;
+                    div.append(successCount);
+
+                    const failCount = document.createElement("h3");
+                    failCount.innerText = `Failed: ${item.failCount}`;
+                    div.append(failCount);
+
+                    const skipCount = document.createElement("h3");
+                    skipCount.innerText = `Skipped: ${item.skipCount}`;
+                    div.append(skipCount);
                 }
-            })
-        }
+
+                // Set border color based on status
+                
+                
+                
+                let borderColor = "#fbc315"; // PROCESSING
+                if (item.status === "SUCCESS" || item.status === "COMPLETED") borderColor = "#26ec40";
+                if (item.status === "FAIL") borderColor = "red";
+                if (item.status === "EXIST" || item.status === "SKIPPED") borderColor = "blue";
+                div.style.border = `8px solid ${borderColor}`;
+                
+                statusDiv.prepend(div);
+            });
+        };
+      
+        const getStatus = async () => {
+            try {
+                const res = await axios.get(`${api}/status`);
+                const statusList = res?.data?.status || [];
+                renderStatus(statusList);
+            } catch (err) {
+                console.error("Failed to fetch status:", err);
+            }
+        };
           
-      
-        setInterval(()=>{
-            getStatus()
-        }, 1000) 
-      
+        setInterval(() => {
+            getStatus();
+        }, 1000); 
     </script>
   
 </body>
 </html>
-

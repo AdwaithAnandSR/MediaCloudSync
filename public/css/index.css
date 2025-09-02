@@ -44,9 +44,20 @@ h1{
     gap: 3vw;
 }
 
+/* For Chrome, Safari, Edge */
+#status::-webkit-scrollbar {
+  display: none;
+}
+
+#status {
+  scrollbar-width: none; 
+  -ms-overflow-style: none;
+}
+
 .box{
-    background: #525252;
-    min-width: 90%;
+    background: transparent;
+    width: 100%;
+    min-width: 100%;
     margin: 0 auto;
     display: flex;
     flex-direction: column;
@@ -60,4 +71,24 @@ h1{
 .box>#title, #url{
     width: 95%;
     overflow: hidden;
+}
+
+.press-btn {
+  background: #f0f0f0;
+  border: 2px solid #ccc;
+  padding: 10px 20px;
+  font-size: 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  
+}
+
+button{
+    box-shadow: 0 4px #aaa;
+  transition: all 0.1s ease-in-out;
+}
+
+button:active {
+  box-shadow: 0 2px #777;
+  transform: translateY(2px);
 }

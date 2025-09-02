@@ -44,11 +44,6 @@ const uploadFromVideo = videoUrl => {
     });
 
     ytdlp.stderr.on("data", data => {
-        updateStatus(processId, {
-            currentStatus: "ytdlp failed!",
-            status: "FAIL",
-            error: data.toString()
-        });
         console.error("yt-dlp error:", data.toString());
     });
 
@@ -81,7 +76,7 @@ const uploadFromVideo = videoUrl => {
 
             if (isExistsRes.data.exists) {
                 updateStatus(processId, {
-                    currentStatus: "song already exist.",
+                    currentStatus: "song already exist 🔴.",
                     status: "EXIST"
                 });
                 return false;
@@ -103,7 +98,7 @@ const uploadFromVideo = videoUrl => {
                 updateStatus(processId, {
                     currentStatus: "Updating database..."
                 });
-                console.log("uploading to database....");
+                
                 const { data } = await axios.post(
                     "https://vivid-music.vercel.app/addSong",
                     {
