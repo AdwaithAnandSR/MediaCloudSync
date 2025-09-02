@@ -1,3 +1,5 @@
+import fs from "fs"
+
 const videos = []
 
 export const addVideo = (id, url) => {
@@ -21,7 +23,7 @@ export const updateStatus = (id, updates)=>{
     const video = videos.find(vid=> vid.id === id)
     if(video){
         Object.assign(video, updates)
-        if(updates?.status === "FAIL" || updates?.status === "SUCCESS"){
+        if(updates?.status === "FAIL" || updates?.status === "SUCCESS" || updates?.status === "EXIST"){
             if(video.audioPath && video.coverPath){
                 fs.unlinkSync(video.audioPath);
                 fs.unlinkSync(video.coverPath);

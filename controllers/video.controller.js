@@ -33,7 +33,6 @@ const uploadFromVideo = videoUrl => {
         "--print-json",
         "--cookies",
         path.resolve(__dirname, "../cookies.txt"),
-
         videoUrl
     ];
 
@@ -71,6 +70,15 @@ const uploadFromVideo = videoUrl => {
                 { id, title }
             );
 
+            const parsed = path.parse(info._filename);
+            const audioPath = path.join(parsed.dir, parsed.name + ".mp3");
+            const coverPath = path.join(parsed.dir, parsed.name + ".jpg");
+
+            updateStatus(processId, {
+                audioPath,
+                coverPath
+            });
+
             if (isExistsRes.data.exists) {
                 updateStatus(processId, {
                     currentStatus: "song already exist.",
@@ -79,14 +87,8 @@ const uploadFromVideo = videoUrl => {
                 return false;
             }
 
-            const parsed = path.parse(info._filename);
-            const audioPath = path.join(parsed.dir, parsed.name + ".mp3");
-            const coverPath = path.join(parsed.dir, parsed.name + ".jpg");
-
             updateStatus(processId, {
-                currentStatus: "Uploading...",
-                coverPath,
-                audioPath
+                currentStatus: "Uploading..."
             });
             const [songPublicUrl, coverPublicUrl] = await Promise.all([
                 uploadSong(audioPath),
@@ -114,19 +116,10 @@ const uploadFromVideo = videoUrl => {
                     }
                 );
                 if (data.success) {
-                    try {
-                        updateStatus(processId, {
-                            currentStatus: "Process Completed 🥳",
-                            status: "SUCCESS"
-                        });
-                    } catch (err) {
-                        updateStatus(processId, {
-                            currentStatus: "file cleanup failed!",
-                            status: "FAIL",
-                            error: err
-                        });
-                        console.error("Error deleting files:", err);
-                    }
+                    updateStatus(processId, {
+                        currentStatus: "Process Completed 🥳",
+                        status: "SUCCESS"
+                    });
                 } else
                     updateStatus(processId, {
                         currentStatus: "Updating database failed!",
